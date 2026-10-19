@@ -35,16 +35,20 @@ package tenant
 // slice directly. The static base chain's copy lives upstream, in
 // praxis-extproc's deploy/base/config/configmap.yaml (vendored into
 // config/manifests/praxis-extproc/base/config/configmap.yaml by
-// hack/scripts/get-manifests.sh) -- edit it there, not here, and keep both
-// lists in sync by hand.
+// hack/scripts/get-manifests.sh) -- edit it there, not here. See
+// praxis-extproc's docs/migration-ipp-to-praxis.md ("maas-headers-guard ->
+// headers") for the authoritative description of that list, and keep this
+// slice in lockstep with it whenever either side adds a header.
 //
 // Only the static base chain additionally scopes the guard to inference
-// requests (via Praxis `conditions`/`unless path_prefix` on the `headers`
-// filter, in that same upstream configmap.yaml): it shares a gateway
-// listener with maas-api, which needs its own authorization / x-maas-*
-// headers. The dynamic ExternalModel chain never needs that scoping --
-// its EnvoyFilter disables ext_proc on every route except the controller's
-// own generated ExternalModel routes, which maas-api traffic never hits.
+// requests (via Praxis `conditions`/`unless path_prefix`/`path` on the
+// `headers` filter, in that same upstream configmap.yaml): it shares a
+// gateway listener with maas-api, which needs its own authorization /
+// x-maas-* headers on routes like /maas-api, /v1/models, /v1/subscriptions,
+// /v1/api-keys, and /v1/me. The dynamic ExternalModel chain never needs
+// that scoping -- its EnvoyFilter disables ext_proc on every route except
+// the controller's own generated ExternalModel routes, which maas-api
+// traffic never hits.
 var GuardedRequestHeaders = []string{
 	"authorization",
 	"x-api-key",
