@@ -190,7 +190,9 @@ func sharedExtProcConfig(apiTranslation bool) string {
 	b.WriteString("      - filter: headers\n")
 	b.WriteString("        conditions:\n")
 	b.WriteString("          - unless:\n")
-	b.WriteString("              path_prefix: /maas-api\n")
+	b.WriteString("              path_prefix: /maas-api/v1\n")
+	b.WriteString("          - unless:\n")
+	b.WriteString("              path_prefix: /maas-api/health\n")
 	b.WriteString("          - unless:\n")
 	b.WriteString("              path_prefix: /v1/models\n")
 	b.WriteString("          - unless:\n")
@@ -200,7 +202,7 @@ func sharedExtProcConfig(apiTranslation bool) string {
 	b.WriteString("          - unless:\n")
 	b.WriteString("              path: /v1/me\n")
 	b.WriteString("        request_remove:\n")
-	for _, header := range GuardedRequestHeaders {
+	for _, header := range guardedRequestHeaders {
 		fmt.Fprintf(&b, "          - %s\n", header)
 	}
 	b.WriteString("      - filter: request_id\n")
@@ -474,7 +476,7 @@ func extprocPostAuthConfig(candidates []envelope.Candidate, credentials []extpro
 	// credential_inject's injected provider credential is never clobbered by
 	// the strip and the caller's own credential never reaches the upstream.
 	b.WriteString("filter_chains:\n  - name: post-auth\n    filters:\n      - filter: headers\n        request_remove:\n")
-	for _, header := range GuardedRequestHeaders {
+	for _, header := range guardedRequestHeaders {
 		fmt.Fprintf(&b, "          - %s\n", header)
 	}
 	b.WriteString("      - filter: intelligent_route\n")
