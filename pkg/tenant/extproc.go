@@ -155,20 +155,27 @@ func configureSharedExtProcResponseMode(resources []unstructured.Unstructured, t
 	return nil
 }
 
-// sharedExtProcConfig injects stream_options.include_usage into streamed Chat
+// sharedExtProcConfig renders the shared post-auth Praxis configuration.
+// Injects stream_options.include_usage into streamed Chat
 // Completions requests, so the final chunk reports token usage and token rate
-// limits count streams, as IPP did. It then adds the registered
-// Anthropic-client → Chat Completions-backend filters only when the tenant
-// permits translation; the injection runs first and does not touch the
+// limits count streams, as IPP did.
+// It starts the ipp chain with the conditional MaaS header guard, then adds
+// request IDs and, when permitted, the Anthropic-client → Chat Completions
+// filters; the injection runs first and does not touch the
 // Messages requests they translate.
-// The ordered chain validates the Messages envelope, translates buffered JSON,
-// converts SSE responses, strips the client Anthropic key, then rewrites the
-// exact Messages path. The tenant's permission also selects the shared ipp
-// response mode: BUFFERED by default and STREAMED when translation is enabled
-// so the Messages SSE filter can emit progressive events. Retaining the route
-// cache is also scoped to translation-enabled tenants because only that shared
-// path rewrites Messages requests. The separate ipp-pre mode and ExternalModel
-// processor are unchanged.
+// This runtime render owns the effective static chain because it
+// replaces the vendored ConfigMap value during reconciliation. The tenant's
+// permission also selects the shared ipp response mode: BUFFERED by default
+// and STREAMED when translation is enabled so the Messages SSE filter can emit
+// progressive events. Retaining the route cache is also scoped to
+// translation-enabled tenants because only that shared path rewrites Messages
+// requests. The separate ipp-pre mode and ExternalModel processor are
+// unchanged.
+//
+// apiTranslation enables the Anthropic Messages translation filters.
+//
+// Returns the deterministic Praxis YAML configuration for the shared ipp
+// processor.
 func sharedExtProcConfig(apiTranslation bool) string {
 	var b strings.Builder
 	b.WriteString("server:\n")
@@ -180,6 +187,22 @@ func sharedExtProcConfig(apiTranslation bool) string {
 	b.WriteString("filter_chains:\n")
 	b.WriteString("  - name: ipp\n")
 	b.WriteString("    filters:\n")
+	b.WriteString("      - filter: headers\n")
+	b.WriteString("        conditions:\n")
+	b.WriteString("          - unless:\n")
+	b.WriteString("              path_prefix: /maas-api\n")
+	b.WriteString("          - unless:\n")
+	b.WriteString("              path_prefix: /v1/models\n")
+	b.WriteString("          - unless:\n")
+	b.WriteString("              path_prefix: /v1/subscriptions\n")
+	b.WriteString("          - unless:\n")
+	b.WriteString("              path_prefix: /v1/api-keys\n")
+	b.WriteString("          - unless:\n")
+	b.WriteString("              path: /v1/me\n")
+	b.WriteString("        request_remove:\n")
+	for _, header := range GuardedRequestHeaders {
+		fmt.Fprintf(&b, "          - %s\n", header)
+	}
 	b.WriteString("      - filter: request_id\n")
 	writeStreamUsageInject(&b)
 	if apiTranslation {
